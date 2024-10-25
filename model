@@ -1,0 +1,157 @@
+import numpy as np
+import cvxpy as cp
+import pandas as pd
+
+class MultiModalTransportOptimizer:
+    def __init__(self):
+        self.routes = None  # Dictionary of routes with costs
+        self.orders = None  # Dictionary of orders with quantities
+        self.cost_matrix = None  # Matrix of costs associated with routes
+        self.transportation_plan = None  # Resulting transportation plan
+
+    def set_parameters(self, routes, orders):
+        """
+        Set the parameters for the transportation problem.
+
+        Parameters:
+        routes (dict): A dictionary with routes as keys (origin, destination) and their associated costs.
+        orders (dict): A dictionary with destinations as keys and their respective order quantities.
+        """
+        self.routes = routes
+        self.orders = orders
+        self.create_cost_matrix()
+
+    def create_cost_matrix(self):
+        """
+        Create a cost matrix from the route data, which will be used in the optimization model.
+        """
+        origins = list(set(key[0] for key in self.routes.keys()))
+        destinations = list(set(self.orders.keys()))
+
+        self.cost_matrix = np.zeros((len(origins), len(destinations)))
+
+        for i, origin in enumerate(origins):
+            for j, destination in enumerate(destinations):
+                if (origin, destination) in self.routes:
+                    self.cost_matrix[i, j] = self.routes[(origin, destination)]
+
+    def build_model(self):
+        """
+        Build the optimization model for the transportation problem, defining the objective function and constraints.
+        """
+        origins = list(set(key[0] for key in self.routes.keys()))
+        destinations = list(set(self.orders.keys()))
+
+        # Decision variables: x[i, j] represents the amount transported from origin i to destination j
+        x = cp.Variable((len(origins), len(destinations)), nonneg=True)
+
+        # Objective function: minimize the total transportation cost
+        cost = cp.sum(cp.multiply(self.cost_matrix, x))
+        objective = cp.Minimize(cost)
+
+        # Constraints
+        constraints = []
+
+        # Supply constraints: ensuring total shipment from each origin does not exceed capacity
+        for i, origin in enumerate(origins):
+            constraints.append(cp.sum(x[i, :]) <= sum(self.orders.values()))  # Example constraint
+
+        # Demand constraints: ensuring total shipment to each destination meets order quantity
+        for j, destination in enumerate(destinations):
+            constraints.append(cp.sum(x[:, j]) == self.orders[destination])
+
+        # Create and solve the problem
+        self.problem = cp.Problem(objective, constraints)
+
+    def solve(self):
+        """
+        Solve the optimization problem and retrieve the transportation plan.
+        """
+        self.problem.solve()
+        self.transportation_plan = self.problem.variables()[0].value
+        return self.transportation_plan
+
+
+def main():
+    # Introduction to the project
+    print("Welcome to SmartFlow Decision Science!")
+    print("This program is designed to help you find the most cost-effective way to transport goods between different cities.")
+    print("You will provide information about available routes (including their costs) and the quantities of goods needed at each destination.")
+    print("The program will then optimize the transportation plan to minimize costs while fulfilling all orders.")
+    print("\nYour goal is to ensure efficient logistics and cost savings in the transportation process.")
+
+    # List of standard cities for user selection
+    cities = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", 
+              "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose"]
+    
+    # Show the list of cities
+    print("\nHere is a list of cities you can choose from for your routes:")
+    for index, city in enumerate(cities):
+        print(f"{index}: {city}")
+
+    # User input for number of routes and orders
+    num_routes = int(input("\nPlease enter the number of routes (between 2 and 8) you would like to define: "))
+    while num_routes < 2 or num_routes > 8:
+        print("Invalid input! Please enter a number between 2 and 8.")
+        num_routes = int(input("Please enter the number of routes (between 2 and 8): "))
+
+    num_orders = int(input("Please enter the number of orders (between 1 and 10) you would like to define: "))
+    while num_orders < 1 or num_orders > 10:
+        print("Invalid input! Please enter a number between 1 and 10.")
+        num_orders = int(input("Please enter the number of orders (between 1 and 10): "))
+
+    # Getting routes from the user
+    routes = {}
+    print(f"\nYou have chosen to define {num_routes} routes. Please enter the routes below:")
+    print("For each route, please input the origin city index, destination city index, and the transportation cost.")
+    print("Format: Origin_Index Destination_Index Cost (e.g., '0 1 10' for New York to Los Angeles at $10):")
+    
+    for i in range(num_routes):
+        route_input = input(f"Enter route no {i + 1}: ")
+        origin_index, destination_index, cost = map(int, route_input.split())
+        origin = cities[origin_index]
+        destination = cities[destination_index]
+        routes[(origin, destination)] = float(cost)  # Storing route cost in dictionary
+        print(f"Great! You've added the route from {origin} to {destination} with a cost of ${cost}.")
+
+    # Getting orders from the user
+    orders = {}
+    print("\nNow, please define the orders. For each order, input the destination city index and the quantity required.")
+    print("Format: Destination_Index Quantity (e.g., '1 30' for Los Angeles with a quantity of 30):")
+    
+    for i in range(num_orders):
+        order_input = input(f"Enter order no {i + 1}: ")
+        destination_index, quantity = map(int, order_input.split())
+        destination = cities[destination_index]
+        orders[destination] = float(quantity)  # Storing order quantity in dictionary
+        print(f"Great! You've added an order for {quantity} units to {destination}.")
+
+    # Create optimizer and set parameters
+    optimizer = MultiModalTransportOptimizer()
+    optimizer.set_parameters(routes, orders)
+    optimizer.build_model()
+    transportation_plan = optimizer.solve()
+
+    # Display the transportation plan
+    print("\nOptimal solution found:")
+    
+    # Custom output for clarity
+    print("You selected the following routes:")
+    for route in routes:
+        print(f"From {route[0]} to {route[1]} at a cost of ${routes[route]}.")
+
+    print("\nYou have ordered the following quantities:")
+    for order in orders:
+        print(f"{orders[order]} units to be sent to {order}.")
+
+    # Result statement in simple English
+    print("\nThe program has optimized the transportation plan.")
+    print("This means that it found the best way to send goods from different cities to other cities while spending the least amount of money.")
+    
+    # Explanation of the problem
+    print("\nWe had a problem: we wanted to send goods from different cities to other cities in the cheapest way possible.")
+    print("You helped us by telling us which cities we can use for shipping, how much each route costs, and how many goods we need at each city.")
+    print("The program then looked for the best way to move all the goods so that the total cost is as low as it can be.")
+
+if __name__ == "__main__":
+    main()
